@@ -1,4 +1,4 @@
-# Local AI v1
+# Local AI
 
 A Windows + WSL launcher for running Ollama and Open WebUI locally without turning setup into a whole side quest.
 
