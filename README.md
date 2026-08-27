@@ -1,6 +1,6 @@
-# Local AI v2
+# Local AI
 
-Local AI v2 is a Windows + WSL2 launcher for Ollama, Open WebUI, and Pi.
+Local AI is a Windows + WSL2 launcher for Ollama, Open WebUI, and Pi.
 
 It is built around one idea: install the stack once, then choose whether you want the Web UI, the coding agent, both, or only the model API.
 
