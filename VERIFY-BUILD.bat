@@ -1,76 +1,36 @@
 @echo off
 setlocal EnableExtensions
-title Verify Local AI v1
 cd /d "%~dp0"
-
-set "EXPECTED_BUILD=v1.0.0"
-
-echo ==========================================
-echo       LOCAL AI BUILD VERIFICATION
-echo ==========================================
-echo.
-echo Expected build:
-echo   %EXPECTED_BUILD%
-echo.
-
+set "EXPECTED=v2.0.0-beta.4.1-20260826"
 if not exist "BUILD-ID.txt" (
     echo FAIL: BUILD-ID.txt missing.
     pause
     exit /b 1
 )
-
-set /p "BUILD="<"BUILD-ID.txt"
-echo Folder build:
-echo   %BUILD%
-echo.
-
-if /I not "%BUILD%"=="%EXPECTED_BUILD%" (
-    echo FAIL: Build ID mismatch.
+set /p BUILD=<"BUILD-ID.txt"
+if /I not "%BUILD%"=="%EXPECTED%" (
+    echo FAIL: Build mismatch. Expected %EXPECTED%, found %BUILD%.
     pause
     exit /b 2
 )
-
-if not exist "LocalAI.ps1" (
-    echo FAIL: LocalAI.ps1 missing.
+set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+"%PS5%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tests\smoke\Test-Paths.ps1"
+if errorlevel 1 (
+    echo FAIL: Required file test failed.
     pause
     exit /b 3
 )
-
-if not exist "PowerShell-Runner.ps1" (
-    echo FAIL: PowerShell-Runner.ps1 missing.
+"%PS5%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tests\smoke\Test-Static.ps1"
+if errorlevel 1 (
+    echo FAIL: Static smoke test failed.
     pause
     exit /b 4
 )
-
-powershell.exe -NoLogo -NoProfile -NonInteractive -Command ^
-  "$c=Get-Content -LiteralPath '.\LocalAI.ps1' -Raw; $m='$LocalAIBuild = ""%EXPECTED_BUILD%""'; if(-not $c.Contains($m)){exit 11}"
+"%PS5%" -NoLogo -NoProfile -Command "$ErrorActionPreference='Stop'; Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop; $root=(Resolve-Path '.').Path; $bad=@(); Get-Content '.\SHA256SUMS.txt' | ForEach-Object { if ($_ -match '^([0-9a-f]{64})  (.+)$') { $want=$matches[1]; $rel=$matches[2]; $p=Join-Path $root ($rel -replace '/','\'); if (!(Test-Path $p) -or (Get-FileHash -Algorithm SHA256 $p).Hash.ToLowerInvariant() -ne $want) { $bad += $rel } } }; if($bad.Count){Write-Host ('FAIL: checksum mismatch: '+($bad -join ', ')); exit 5}"
 if errorlevel 1 (
-    echo FAIL: LocalAI.ps1 build mismatch.
     pause
     exit /b 5
 )
-
-powershell.exe -NoLogo -NoProfile -NonInteractive -Command ^
-  "$c=Get-Content -LiteralPath '.\PowerShell-Runner.ps1' -Raw; $m='$ExpectedBuild = ""%EXPECTED_BUILD%""'; if(-not $c.Contains($m)){exit 12}"
-if errorlevel 1 (
-    echo FAIL: PowerShell-Runner.ps1 build mismatch.
-    pause
-    exit /b 6
-)
-
-powershell.exe -NoLogo -NoProfile -NonInteractive -Command ^
-  "$c=Get-Content -LiteralPath '.\LocalAI.ps1' -Raw; if($c.Contains('$SECONDS')){exit 13}; if($c.Contains('Get-Command wt.exe')){exit 14}"
-if errorlevel 1 (
-    echo FAIL: Old launcher code was detected.
-    pause
-    exit /b 7
-)
-
-echo PASS: Local AI v1 files match.
-echo PASS: No old SECONDS startup loop.
-echo PASS: No wt.exe Ubuntu runtime launcher.
-echo.
-echo You can run Install-Local-AI.bat now.
-echo.
+echo PASS: Local AI v2 beta 4.1 files are internally consistent.
 pause
 exit /b 0

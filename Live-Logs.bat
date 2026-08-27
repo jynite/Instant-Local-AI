@@ -1,17 +1,17 @@
 @echo off
 setlocal EnableExtensions
-title Local AI Live Logs
-set "CONTROLLER=%~dp0LocalAI.ps1"
+title Local AI v2 Logs
+cd /d "%~dp0"
+set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"
+if not exist "%PWSH%" for /f "delims=" %%I in ('where pwsh.exe 2^>nul') do set "PWSH=%%I"
+if not exist "%PWSH%" if exist "%PS5%" for /f "delims=" %%I in ('%PS5% -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Find-Pwsh.ps1"') do set "PWSH=%%I"
 if not exist "%PWSH%" (
-    for /f "delims=" %%I in ('where pwsh.exe 2^>nul') do if not defined PWSH set "PWSH=%%I"
-)
-if not defined PWSH (
-    echo PowerShell 7 not found.
+    echo PowerShell 7 is required. Run Setup-Local-AI.bat first.
     pause
-    exit /b 1
+    exit /b 10
 )
-"%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%CONTROLLER%" logs
+"%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action logs
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" pause
 exit /b %RC%

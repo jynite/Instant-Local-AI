@@ -1,22 +1,14 @@
 @echo off
-setlocal
-title Local AI Debug Bootstrap
-
-echo This debug window stays open.
-echo A SECOND PowerShell window should open for Local AI.
-echo.
-
-call "%~dp0Local-AI.bat"
-set "RC=%ERRORLEVEL%"
-
-echo.
-echo Bootstrap returned: %RC%
-echo.
-echo If the PowerShell window reports an error, send its text or the newest:
-echo   %~dp0logs\controller-*.log
-echo.
-echo Bootstrap log:
-echo   %~dp0bootstrap.log
-echo.
-pause
-exit /b %RC%
+setlocal EnableExtensions
+title Local AI v2 Debug
+cd /d "%~dp0"
+set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"
+if not exist "%PWSH%" for /f "delims=" %%I in ('where pwsh.exe 2^>nul') do set "PWSH=%%I"
+if not exist "%PWSH%" if exist "%PS5%" for /f "delims=" %%I in ('%PS5% -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Find-Pwsh.ps1"') do set "PWSH=%%I"
+if not exist "%PWSH%" (
+    echo PowerShell 7 is required.
+    pause
+    exit /b 10
+)
+"%PWSH%" -NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action menu

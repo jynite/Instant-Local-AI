@@ -1,6 +1,9 @@
-logs/
-bootstrap.log
-*.log
+config/local.json
+state/*.json
+state/*.txt
+logs/**/*.log
+logs/**/*.jsonl
+!logs/**/.gitkeep
 __pycache__/
 *.py[cod]
 .DS_Store

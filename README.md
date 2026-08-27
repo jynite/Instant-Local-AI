@@ -1,213 +1,263 @@
-# Local AI
+# Local AI v2
 
-A Windows + WSL launcher for running Ollama and Open WebUI locally without turning setup into a whole side quest.
+Local AI v2 is a Windows + WSL2 launcher for Ollama, Open WebUI, and Pi.
 
-It handles startup, shutdown, logging, health checks, GPU monitoring, token usage, benchmarks, diagnostics, and Open WebUI service management.
+It is built around one idea: install the stack once, then choose whether you want the Web UI, the coding agent, both, or only the model API.
+
+## Modes
+
+`Web UI` runs Ollama + Open WebUI.
+
+`Pi Agent` runs Ollama + Pi.
+
+`Resume Pi` opens Pi with its most recent saved session.
+
+`Both` runs Ollama + Open WebUI + Pi.
+
+`Ollama Only` runs only the model backend.
+
+`Custom` asks which frontends to start.
 
 ## Requirements
 
-You need:
-
 - Windows 11
+- x64
 - WSL2
-- Ubuntu installed in WSL
-- systemd enabled in Ubuntu
-- Ollama installed inside Ubuntu
-- `ollama.service` available through systemd
-- `uv` installed inside Ubuntu
+- Ubuntu
 - PowerShell 7
-- `winget` if you want the launcher to install PowerShell 7 automatically
+- internet access during setup
+- enough RAM and disk space for the model you select
+- an NVIDIA GPU is recommended, but the launcher does not require one
 
-An NVIDIA GPU is recommended. CPU-only Ollama can still work, but the GPU and VRAM monitoring features are built around NVIDIA.
-
-The default WSL distro name is `Ubuntu`.
-
-## Prerequisites
-
-Open Ubuntu and make sure these work:
-
-```bash
-systemctl is-system-running
-ollama --version
-uv --version
-```
-
-If systemd is not enabled, put this in `/etc/wsl.conf`:
-
-```ini
-[boot]
-systemd=true
-```
-
-Then run this in Windows PowerShell:
-
-```powershell
-wsl --shutdown
-```
-
-Open Ubuntu again after that.
-
-If you still need Ollama or `uv`:
-
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+`Setup-Local-AI.bat` installs or repairs the normal prerequisites instead of expecting you to do the dependency hunt yourself.
 
 ## Install
 
-Do not run the BAT files from inside the ZIP. Extract everything first.
-
-Then run:
-
-1. `VERIFY-BUILD.bat`
-2. `Install-Local-AI.bat`
-3. `Start-Local-AI.bat`
-
-The installer sets up Open WebUI, `nvitop`, the utility script, `open-webui.service`, and persistent journald logging.
-
-Your Open WebUI data lives at:
-
-```text
-~/.open-webui
-```
-
-Open WebUI runs at:
-
-```text
-http://localhost:3000
-```
-
-## Start
+Extract the repo first. Do not run the BAT files from inside the ZIP.
 
 Run:
 
 ```text
-Start-Local-AI.bat
+VERIFY-BUILD.bat
+Setup-Local-AI.bat
 ```
 
-A PowerShell console and an Ubuntu window will open.
+Setup handles:
 
-Keep the Ubuntu window open while Local AI is running. It keeps the WSL runtime alive.
+- PowerShell 7
+- WSL and Ubuntu
+- WSL2 conversion when needed
+- systemd
+- Linux prerequisites
+- Node.js when Pi is enabled
+- Python
+- uv when Open WebUI is enabled
+- Ollama
+- Pi when enabled
+- Open WebUI when enabled
+- Local AI helper tooling
+- Pi's Ollama provider configuration
+- the `local_ai_status` Pi extension
+- optional model download
+- smoke tests
 
-The browser opens automatically once Open WebUI and Ollama are ready.
+Ubuntu package-manager output is streamed directly into the setup window. A Linux sudo prompt is not used for Local AI's root-side installer operations because Windows launches those WSL commands as root explicitly.
 
-## Stop
-
-Run:
-
-```text
-Stop-Local-AI.bat
-```
-
-Stop verifies that Ubuntu is stopped, Open WebUI is offline, and the Ollama API is offline.
-
-If no other WSL distro is running, it also tries to reclaim the WSL VM.
-
-A successful stop closes its PowerShell window automatically.
-
-## Configuration
-
-Defaults:
-
-```text
-WSL distro: Ubuntu
-Model: huihui_ai/Qwen3.8-abliterated
-Open WebUI: http://localhost:3000
-```
-
-Override the distro or default model with Windows environment variables:
-
-```powershell
-setx LOCAL_AI_DISTRO "Ubuntu"
-setx LOCAL_AI_MODEL "your-ollama-model"
-```
-
-Open a new shell after using `setx`.
-
-You can still select any installed Ollama model inside Open WebUI.
+If Windows or Ubuntu needs a restart/first-run setup, run `Setup-Local-AI.bat` again afterward.
 
 ## Launchers
 
-| File | Purpose |
-| --- | --- |
-| `Local-AI.bat` | Main menu |
-| `Install-Local-AI.bat` | Install or repair the stack |
-| `Start-Local-AI.bat` | Start Local AI |
-| `Stop-Local-AI.bat` | Stop Local AI and verify shutdown |
-| `Restart-Local-AI.bat` | Restart the stack |
-| `Health-Check.bat` | Run health checks |
-| `Live-Logs.bat` | Follow Open WebUI and Ollama logs |
-| `Diagnostics.bat` | Generate diagnostics |
-| `Benchmark.bat` | Benchmark an Ollama model |
-| `WebUI-Probe.bat` | Probe Open WebUI endpoints |
-| `VERIFY-BUILD.bat` | Verify release files match |
-| `DEBUG-Local-AI.bat` | Keep the bootstrap window open for debugging |
-
-## Logs
-
-Controller logs:
-
 ```text
-logs/controller-*.log
-```
-
-Service logs:
-
-```text
-logs/services-*.log
-```
-
-Journald:
-
-```bash
-journalctl -u open-webui.service
-journalctl -u ollama.service
-```
-
-Open WebUI audit metadata:
-
-```text
-~/.open-webui/audit.log
-```
-
-## Token usage
-
-The utility suite reads token usage from the Open WebUI database when usage metadata exists.
-
-The main menu includes token totals, live token usage, benchmark history, model state, and GPU or VRAM state.
-
-Token counts depend on what the model or provider writes into Open WebUI. Missing usage metadata cannot be reconstructed perfectly.
-
-## Updating
-
-The update flow backs up `~/.open-webui` before upgrading Open WebUI when that data directory exists.
-
-The launcher is not supposed to wipe your chats or settings.
-
-## Troubleshooting
-
-If startup fails:
-
-```text
-Diagnostics.bat
+Local-AI.bat
+Start-Local-AI.bat
+Start-WebUI.bat
+Start-Pi.bat
+Resume-Pi.bat
+Start-Both.bat
+Start-Ollama.bat
+Stop-Local-AI.bat
+Restart-Local-AI.bat
+Status-Local-AI.bat
+Health-Check.bat
+Manage-Models.bat
+Tokens.bat
+Live-Tokens.bat
+Dashboard.bat
+Benchmark.bat
+Benchmark-History.bat
 Live-Logs.bat
+WebUI-Probe.bat
+Diagnostics.bat
+Open-WSL-Runtime.bat
+DEBUG-Local-AI.bat
 ```
 
-If Open WebUI loads but detection looks wrong:
+`Start-Local-AI.bat` uses the profile saved during setup.
+
+`Status-Local-AI.bat` is intentionally side-effect free. It does not start Ubuntu merely to answer whether the stack is running.
+
+## WSL lifetime
+
+Open WebUI and Ollama are Linux services. WSL can shut a distro down when there is no active Windows-side client, even while Linux services exist.
+
+For Web UI, Both, and Ollama-only profiles, Local AI opens a visible Ubuntu runtime window by default. Keep that window open while the profile is running.
+
+Pi-only mode does not need the extra runtime window because the interactive Pi terminal itself keeps WSL active.
+
+The behavior can be changed in `config/local.json`.
+
+## Pi
+
+Pi runs inside Ubuntu and talks to Ollama at:
 
 ```text
-WebUI-Probe.bat
+http://127.0.0.1:11434/v1
 ```
 
-If WSL is being weird:
+Runtime Pi configuration is generated from the checksum-protected templates in `config/` and installed into Local AI's isolated Pi home:
 
-```powershell
-wsl --list --running
-wsl --shutdown
+```text
+~/.local/share/local-ai/pi-agent/
+├── models.json
+├── settings.json
+├── extensions/
+└── sessions/
 ```
 
-Then start Local AI again.
+Local AI sets `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` before Pi starts. Plain `pi` outside Local AI keeps using its normal configuration and sessions. If Pi is not already installed, Local AI installs its package into `~/.local/share/local-ai/pi-runtime` instead of requiring a root-owned global npm install.
+
+Pi saves Local AI interactive sessions in the isolated session directory. `Resume-Pi.bat` starts Pi with its most recent Local AI session.
+
+Local AI tags only the Pi process tree it launches. Stop does not use a generic `pkill pi`, so unrelated Pi sessions are not intentionally killed.
+
+## Local AI Pi tool
+
+The first extension exposes:
+
+```text
+local_ai_status
+```
+
+Actions:
+
+```text
+health
+models
+benchmark
+```
+
+It uses `~/.local/bin/local-ai-tools.py` when available and has direct safe fallbacks for health/model inspection. Benchmark uses the model and context configured for Pi.
+
+## Context
+
+The initial default is 65,536 tokens.
+
+Local AI writes that value into the Ollama systemd override and Pi model metadata. The project does not yet pretend that one context size is ideal for every GPU or model.
+
+The existing benchmark tooling is the basis for a later 32K / 64K / 96K / 128K profiler after real Pi sessions show whether that is actually useful.
+
+## Stop behavior
+
+`Stop-Local-AI.bat` does the following:
+
+1. stops only the Local AI managed Pi process tree
+2. stops Open WebUI
+3. stops Ollama
+4. closes Local AI-owned runtime windows
+5. waits with timeouts
+6. optionally terminates the configured WSL distro
+7. verifies the endpoints and managed Pi process are gone
+
+Pi session history is saved by Pi itself. An in-flight tool call or generation can still be interrupted by a forced shutdown, so finish important writes before deliberately killing the runtime.
+
+Setup asks whether Stop should terminate the entire Ubuntu distro. Leave that disabled if you regularly use the same distro for unrelated WSL work.
+
+## Configuration
+
+Repository defaults live in:
+
+```text
+config/default.json
+```
+
+Machine-specific configuration is generated at:
+
+```text
+config/local.json
+```
+
+Setup merges newly added defaults into older `local.json` files, which makes beta upgrades less brittle.
+
+Generated runtime/install state is kept under `state/` and is ignored by Git.
+
+## Open WebUI
+
+Open WebUI uses Python 3.11 and a persistent uv tool environment for new Local AI installations.
+
+If setup detects an existing working `open-webui.service`, it preserves that service definition rather than replacing it. This is useful when migrating from an older Local AI build.
+
+Newly created Open WebUI services are not enabled for automatic WSL-boot startup. Profiles start the service only when needed.
+
+## Logging and diagnostics
+
+Controller and setup logs:
+
+```text
+logs/launcher/
+```
+
+Diagnostics bundles:
+
+```text
+logs/diagnostics/
+```
+
+Ollama and Open WebUI service logs remain in journald.
+
+`Live-Logs.bat` follows both services.
+
+`WebUI-Probe.bat` checks `/health`, `/ready`, `/health/db`, and `/` separately because a usable Open WebUI root can come online even when one of the narrower probes behaves differently.
+
+## Update
+
+`Update-Local-AI.bat`:
+
+- stops services that were active
+- backs up `~/.open-webui` before an Open WebUI upgrade
+- updates enabled components
+- refreshes the Local AI extension/helper
+- restores the previous service state even when the update fails
+
+It does not overwrite Pi's runtime model/settings files with repository templates.
+
+## Repair
+
+`Repair-Local-AI.bat` reruns the idempotent prerequisite/configuration checks without asking you to rebuild the installation manually.
+
+## Uninstall
+
+`Uninstall-Local-AI.bat` is ownership-aware where possible.
+
+A Pi package or Open WebUI service that Local AI did not record as creating is preserved by default. User data, WSL, Ubuntu, Ollama, and downloaded models are not silently deleted.
+
+## Security
+
+Pi is an agent harness, not a sandbox. It runs with the Linux user's permissions.
+
+Local AI exposes these access profiles:
+
+- Read
+- Workspace
+- Workspace + Net
+- Full Access
+
+Read mode is enforced at Pi startup by allowing only `read`, `grep`, `find`, and `ls`. The other profiles currently remain guardrails because raw Bash is not an operating-system sandbox. Stronger Bubblewrap or dedicated-WSL isolation remains opt-in/future work rather than a beta4 core dependency.
+
+## Beta scope
+
+This build focuses on setup, prerequisites, lifecycle, Pi integration, status, health, diagnostics, update safety, and reliable shutdown.
+
+Automatic context profiling, stronger sandbox enforcement, richer Pi audit logs, model routing, Pi RPC/SDK control, and Windows-native desktop tools are later layers.
 
 ## License
 

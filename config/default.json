@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "build": "v2.0.0-beta.4.1-20260826",
+  "distro": "Ubuntu",
+  "profile": "both",
+  "model": {
+    "primary": "huihui_ai/Qwen3.8-abliterated",
+    "context": 65536,
+    "max_output_tokens": 8192,
+    "reasoning_level": "high"
+  },
+  "components": {
+    "ollama": true,
+    "open_webui": true,
+    "pi": true
+  },
+  "workspace": {
+    "default": "",
+    "access_mode": "workspace"
+  },
+  "ports": {
+    "ollama": 11434,
+    "open_webui": 3000
+  },
+  "timeouts": {
+    "ollama_start_seconds": 60,
+    "webui_start_seconds": 300,
+    "pi_stop_seconds": 8,
+    "service_stop_seconds": 15,
+    "keepalive_start_seconds": 10,
+    "pi_start_seconds": 15
+  },
+  "logging": {
+    "enabled": true,
+    "diagnostics_journal_lines": 120
+  },
+  "wsl": {
+    "terminate_on_stop": true,
+    "visible_keepalive_without_pi": true
+  },
+  "ollama": {
+    "flash_attention": false,
+    "kv_cache_type": "f16"
+  }
+}

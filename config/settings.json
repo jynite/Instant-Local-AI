@@ -1,0 +1,7 @@
+{
+  "defaultProvider": "ollama",
+  "defaultModel": "huihui_ai/Qwen3.8-abliterated",
+  "defaultProjectTrust": "ask",
+  "showCacheMissNotices": true,
+  "defaultThinkingLevel": "xhigh"
+}

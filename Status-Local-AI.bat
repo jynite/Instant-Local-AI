@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title Local AI v2 Health
+title Local AI v2 Status
 cd /d "%~dp0"
 set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"
@@ -11,7 +11,7 @@ if not exist "%PWSH%" (
     pause
     exit /b 10
 )
-"%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action health
+"%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action status
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" pause
 exit /b %RC%
