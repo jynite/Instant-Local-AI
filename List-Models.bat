@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title JYNERATION - Benchmark History
+title JYNERATION - Model Library
 cd /d "%~dp0"
 set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"
@@ -11,7 +11,5 @@ if not exist "%PWSH%" (
     pause
     exit /b 10
 )
-"%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action benchmarkhistory
-set "RC=%ERRORLEVEL%"
-if not "%JYNERATION_NONINTERACTIVE%"=="1" if not "%RC%"=="0" pause
-exit /b %RC%
+"%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action models
+exit /b %ERRORLEVEL%

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 saj
+// SPDX-License-Identifier: MIT
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { promisify } from "node:util";
@@ -81,16 +83,16 @@ async function fallback(action: string): Promise<string | null> {
   let memory = "unavailable";
   try { gpu = String((await execFileAsync("bash", ["-lc", "nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits 2>/dev/null || /usr/lib/wsl/lib/nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits 2>/dev/null || true"], { encoding: "utf8", timeout: 5000 })).stdout).trim() || "unavailable"; } catch {}
   try { memory = String((await execFileAsync("bash", ["-lc", "grep -E 'MemTotal|MemAvailable' /proc/meminfo"], { encoding: "utf8", timeout: 3000 })).stdout).trim() || "unavailable"; } catch {}
-  return ["# Local AI health fallback", `Ollama: ${version ? "online" : "offline"}`, `Open WebUI: ${webui}`, "", "GPU:", gpu, "", "Memory:", memory, "", "Loaded models:", JSON.stringify(running, null, 2)].join("\n");
+  return ["# JYNERATION health fallback", `Ollama: ${version ? "online" : "offline"}`, `Open WebUI: ${webui}`, "", "GPU:", gpu, "", "Memory:", memory, "", "Loaded models:", JSON.stringify(running, null, 2)].join("\n");
 }
 
 export default function localAI(pi: ExtensionAPI) {
   pi.registerTool({
     name: "local_ai_status",
-    label: "Local AI Status",
-    description: "Inspect Local AI health, Ollama models, or run the configured quick benchmark.",
-    promptSnippet: "Inspect Local AI runtime health, models, or benchmark state",
-    promptGuidelines: ["Use local_ai_status when the user asks about Local AI runtime health, Ollama state, Open WebUI state, loaded models, GPU/RAM status, or a quick local benchmark."],
+    label: "JYNERATION Status",
+    description: "Inspect JYNERATION health, Ollama models, or run the configured quick benchmark.",
+    promptSnippet: "Inspect JYNERATION runtime health, models, or benchmark state",
+    promptGuidelines: ["Use local_ai_status when the user asks about JYNERATION runtime health, Ollama state, Open WebUI state, loaded models, GPU/RAM status, or a quick local benchmark."],
     parameters: Type.Object({
       action: Type.Optional(Type.Union([Type.Literal("health"), Type.Literal("models"), Type.Literal("benchmark")]))
     }),

@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title Local AI v2
+title JYNERATION - Ollama Control HUD
 cd /d "%~dp0"
 set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 saj
+# SPDX-License-Identifier: MIT
 $ErrorActionPreference = "SilentlyContinue"
 
 $candidates = New-Object System.Collections.Generic.List[string]
@@ -10,11 +12,11 @@ function Add-Candidate {
 
 if ($env:ProgramFiles) { Add-Candidate (Join-Path $env:ProgramFiles "PowerShell\7\pwsh.exe") }
 if (${env:ProgramW6432}) { Add-Candidate (Join-Path ${env:ProgramW6432} "PowerShell\7\pwsh.exe") }
-if ($env:LOCALAPPDATA) { Add-Candidate (Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\pwsh.exe") }
+if (${env:ProgramFiles(x86)}) { Add-Candidate (Join-Path ${env:ProgramFiles(x86)} "PowerShell\7\pwsh.exe") }
 if ($env:USERPROFILE) { Add-Candidate (Join-Path $env:USERPROFILE ".dotnet\tools\pwsh.exe") }
 
 $command = Get-Command pwsh.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($command -and $command.Source) { Add-Candidate $command.Source }
+if ($command -and $command.Source -and $command.Source -notmatch '\\WindowsApps\\') { Add-Candidate $command.Source }
 
 foreach ($key in @(
     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\pwsh.exe",
@@ -30,6 +32,8 @@ $appx = Get-AppxPackage -Name "Microsoft.PowerShell*" -ErrorAction SilentlyConti
 if ($appx -and $appx.InstallLocation) {
     Add-Candidate (Join-Path $appx.InstallLocation "pwsh.exe")
 }
+
+if ($env:LOCALAPPDATA) { Add-Candidate (Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\pwsh.exe") }
 
 foreach ($candidate in $candidates) {
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {

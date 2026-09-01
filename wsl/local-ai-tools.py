@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 saj
+# SPDX-License-Identifier: MIT
 from __future__ import annotations
 import argparse
 import datetime as dt
@@ -13,8 +15,8 @@ import urllib.error
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
-OLLAMA = os.environ.get('OLLAMA_URL', 'http://127.0.0.1:11434')
-WEBUI = os.environ.get('WEBUI_URL', 'http://127.0.0.1:3000')
+OLLAMA = os.environ.get('OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/')
+WEBUI = os.environ.get('WEBUI_URL', 'http://127.0.0.1:3000').rstrip('/')
 DEFAULT_MODEL = os.environ.get('LOCAL_AI_MODEL', 'huihui_ai/Qwen3.8-abliterated')
 DB = Path.home() / '.open-webui' / 'webui.db'
 STATE = Path.home() / '.local' / 'state' / 'local-ai'
@@ -88,8 +90,11 @@ def webui_health(timeout=3):
     return webui_status(timeout)[0]
 
 def service_state(name):
-    p = subprocess.run(['systemctl', 'is-active', name], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-    return p.stdout.strip() or 'unknown'
+    try:
+        p = subprocess.run(['systemctl', 'is-active', name], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5)
+        return p.stdout.strip() or 'unknown'
+    except (OSError, subprocess.TimeoutExpired):
+        return 'unknown'
 
 def find_nvidia_smi():
     candidates = [shutil.which('nvidia-smi'), '/usr/lib/wsl/lib/nvidia-smi', '/usr/bin/nvidia-smi', '/usr/local/bin/nvidia-smi']
@@ -141,14 +146,28 @@ def get_running():
     except Exception:
         return []
 
+def get_capabilities(model):
+    """Return Ollama-reported capabilities for a model without failing the listing."""
+    try:
+        details = api('/api/show', method='POST', payload={'name': model}, timeout=8)
+        caps = details.get('capabilities', [])
+        return {str(x).strip().lower() for x in caps if str(x).strip()}
+    except Exception:
+        return set()
+
 def health():
-    print(c('LOCAL AI HEALTH CHECK', C_CYAN))
+    print(c('JYNERATION // HEALTH CHECK', C_CYAN))
     print('=' * 64)
     checks = []
+    advisories = []
+    webui_enabled = os.environ.get('LOCAL_AI_OPEN_WEBUI_ENABLED', '1').strip().lower() not in {'0', 'false', 'no', 'off'}
     ollama_state = service_state('ollama.service')
-    webui_state = service_state('open-webui.service')
+    webui_state = service_state('open-webui.service') if webui_enabled else 'disabled'
     checks.append(('Ollama systemd', ollama_state == 'active', ollama_state))
-    checks.append(('Open WebUI systemd', webui_state == 'active', webui_state))
+    if webui_enabled:
+        checks.append(('Open WebUI systemd', webui_state == 'active', webui_state))
+    else:
+        advisories.append(('Open WebUI systemd', True, 'disabled in profile'))
     try:
         tags = api('/api/tags', timeout=3)
         ollama_ok = True
@@ -157,10 +176,14 @@ def health():
         ollama_ok = False
         model_count = 0
     checks.append(('Ollama API :11434', ollama_ok, f'{model_count} model(s)' if ollama_ok else 'unreachable'))
-    ow_ok, ow_detail = webui_status()
-    checks.append(('Open WebUI :3000', ow_ok, ow_detail))
+    if webui_enabled:
+        ow_ok, ow_detail = webui_status()
+        checks.append(('Open WebUI :3000', ow_ok, ow_detail))
+    else:
+        ow_ok = False
+        advisories.append(('Open WebUI :3000', True, 'disabled in profile'))
     gpu = nvidia_row()
-    checks.append(('NVIDIA GPU', gpu is not None, gpu['name'] if gpu else 'not detected'))
+    advisories.append(('NVIDIA GPU', gpu is not None, gpu['name'] if gpu else 'not detected (optional)'))
     mem = meminfo()
     if mem:
         free_gib = mem['available'] / 1024 ** 3
@@ -172,8 +195,8 @@ def health():
         size_vram = m.get('size_vram') or 0
         pct = size_vram / size * 100 if size else None
         detail = f'{human_bytes(size_vram)} VRAM' + (f' ({pct:.0f}% GPU-resident)' if pct is not None else '') + f", ctx {m.get('context_length', 'n/a')}"
-        checks.append((f'Model: {name}', pct is None or pct >= 90, detail))
-    for label, ok, detail in checks:
+        advisories.append((f'Model: {name}', pct is None or pct >= 90, detail))
+    for label, ok, detail in checks + advisories:
         mark = c('PASS', C_GREEN) if ok else c('WARN', C_YELLOW)
         print(f'{mark:>13}  {label:<24} {detail}')
     print()
@@ -187,10 +210,8 @@ def health():
         print(c('Suggested next checks:', C_YELLOW))
         if ollama_state != 'active':
             print('  journalctl -u ollama.service -n 100 --no-pager')
-        if webui_state != 'active' or not ow_ok:
+        if webui_enabled and (webui_state != 'active' or not ow_ok):
             print('  journalctl -u open-webui.service -n 150 --no-pager')
-        if gpu is None:
-            print('  nvidia-smi')
         if mem and mem['available'] < 6 * 1024 ** 3:
             print('  Stop unused models/services or use Stop-Local-AI.bat to terminate WSL.')
         return 1
@@ -206,13 +227,17 @@ def models():
     if not installed:
         print('No models returned by Ollama.')
         return
-    print(f"{'MODEL':44} {'SIZE':>10} {'PARAMS':>9} {'QUANT':>10} {'STATE':>10}")
-    print('-' * 88)
+    print(f"{'MODEL':40} {'SIZE':>10} {'PARAMS':>9} {'QUANT':>10} {'CAPABILITIES':20} {'STATE':>10}")
+    print('-' * 106)
     for m in installed:
         name = m.get('name') or m.get('model') or '(unknown)'
         d = m.get('details') or {}
         state = 'LOADED' if normalize_model_name(name) in running else ''
-        print(f"{name[:44]:44} {human_bytes(m.get('size')):>10} {str(d.get('parameter_size', '')):>9} {str(d.get('quantization_level', '')):>10} {state:>10}")
+        caps = get_capabilities(name)
+        cap_text = ','.join(x for x in ('tools', 'vision', 'completion') if x in caps) or 'unknown'
+        print(f"{name[:40]:40} {human_bytes(m.get('size')):>10} {str(d.get('parameter_size', '')):>9} {str(d.get('quantization_level', '')):>10} {cap_text[:20]:20} {state:>10}")
+        if caps and 'tools' not in caps:
+            print('  WARN: Pi tool workflow may be unavailable for this model (Ollama did not report tools support).')
     if running:
         print()
         print(c('RUNNING / RESIDENT', C_CYAN))
@@ -283,6 +308,18 @@ def token_pair(u):
     return (inp, out, reasoning)
 
 def norm_ts(value):
+    if isinstance(value, dt.datetime):
+        return value.timestamp()
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            try:
+                parsed = dt.datetime.fromisoformat(text.replace('Z', '+00:00'))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=dt.datetime.now().astimezone().tzinfo)
+                return parsed.timestamp()
+            except ValueError:
+                pass
     try:
         value = float(value)
     except Exception:
@@ -319,8 +356,8 @@ def load_usage_rows(retries=3, retry_delay=0.4):
     raise last_exc
 
 def agg(rows, cutoff=None):
-    total = {'in': 0, 'out': 0, 'reasoning': 0, 'count': 0, 'eval_ns': 0.0}
-    by_model = defaultdict(lambda: {'in': 0, 'out': 0, 'reasoning': 0, 'count': 0, 'eval_ns': 0.0})
+    total = {'in': 0, 'out': 0, 'reasoning': 0, 'count': 0, 'metered': 0, 'unmetered': 0, 'eval_ns': 0.0}
+    by_model = defaultdict(lambda: {'in': 0, 'out': 0, 'reasoning': 0, 'count': 0, 'metered': 0, 'unmetered': 0, 'eval_ns': 0.0})
     last = None
     for r in rows:
         ts = norm_ts(r['created_at'])
@@ -330,11 +367,13 @@ def agg(rows, cutoff=None):
         inp, out, reasoning = token_pair(u)
         model = r['model_id'] or '(unknown)'
         eval_ns = as_float(u.get('eval_duration'))
+        metered = bool(u) and (inp > 0 or out > 0 or reasoning > 0)
         for obj in (total, by_model[model]):
             obj['in'] += inp
             obj['out'] += out
             obj['reasoning'] += reasoning
             obj['count'] += 1
+            obj['metered' if metered else 'unmetered'] += 1
             obj['eval_ns'] += eval_ns
         last = (model, inp, out, reasoning, u, ts)
     return (total, by_model, last)
@@ -348,6 +387,9 @@ def print_latest(last):
     print('Latest response')
     print('-' * 84)
     print(f'model: {model}')
+    if not u or (inp == 0 and out == 0 and reasoning == 0):
+        print('usage: unavailable (the provider did not return token metadata)')
+        return
     print(f'input: {inp:,} | output: {out:,} | reasoning: {reasoning:,}')
     prompt_dur = as_float(u.get('prompt_eval_duration'))
     prompt_rate = inp / (prompt_dur / 1000000000.0) if prompt_dur else None
@@ -370,7 +412,10 @@ def tokens(days=7, live=False, interval=2):
             for label, cutoff in [('24 hours', now - 86400), ('7 days', now - 7 * 86400), ('30 days', now - 30 * 86400), ('All time', None)]:
                 a, _, _ = agg(rows, cutoff)
                 rate = tps(a['out'], a['eval_ns'])
-                print(f"{label:<10} in {a['in']:>11,} | out {a['out']:>11,} | total {a['in'] + a['out']:>11,} | responses {a['count']:>6,} | {fmt_rate(rate)}")
+                meter = f"metered {a['metered']:,}"
+                if a['unmetered']:
+                    meter += f" / unavailable {a['unmetered']:,}"
+                print(f"{label:<10} in {a['in']:>11,} | out {a['out']:>11,} | total {a['in'] + a['out']:>11,} | responses {a['count']:>6,} | {meter} | {fmt_rate(rate)}")
             cutoff = now - days * 86400 if days > 0 else None
             _a, by_model, last = agg(rows, cutoff)
             print()
@@ -378,7 +423,10 @@ def tokens(days=7, live=False, interval=2):
             print('-' * 84)
             for model, x in sorted(by_model.items(), key=lambda kv: kv[1]['in'] + kv[1]['out'], reverse=True):
                 rate = tps(x['out'], x['eval_ns'])
-                print(f"{model}\n  input {x['in']:,} | output {x['out']:,} | total {x['in'] + x['out']:,} | reasoning {x['reasoning']:,} | responses {x['count']:,} | {fmt_rate(rate)}")
+                meter = f"metered {x['metered']:,}"
+                if x['unmetered']:
+                    meter += f" / unavailable {x['unmetered']:,}"
+                print(f"{model}\n  input {x['in']:,} | output {x['out']:,} | total {x['in'] + x['out']:,} | reasoning {x['reasoning']:,} | responses {x['count']:,} | {meter} | {fmt_rate(rate)}")
             if last:
                 print_latest(last)
         except FileNotFoundError as exc:
@@ -479,6 +527,7 @@ def benchmark(model, num_ctx=8192, runs=3, output_tokens=128):
     return 0
 
 def benchmark_history(limit=20):
+    limit = max(1, min(int(limit), 1000))
     if not BENCH.exists():
         print('No benchmark history yet.')
         return
@@ -503,7 +552,7 @@ def benchmark_history(limit=20):
 def dashboard():
     while True:
         print('\x1b[2J\x1b[H', end='')
-        print(c('LOCAL AI DASHBOARD', C_CYAN))
+        print(c('JYNERATION // DASHBOARD', C_CYAN))
         print('=' * 86)
         print(dt.datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z'))
         print()
@@ -540,7 +589,7 @@ def dashboard():
             return
 
 def main():
-    ap = argparse.ArgumentParser(description='Local AI utility suite')
+    ap = argparse.ArgumentParser(description='JYNERATION runtime utility suite')
     sp = ap.add_subparsers(dest='cmd', required=True)
     sp.add_parser('health')
     sp.add_parser('models')

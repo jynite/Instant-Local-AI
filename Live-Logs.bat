@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title Local AI v2 Logs
+title JYNERATION - Live Logs
 cd /d "%~dp0"
 set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"
@@ -13,5 +13,5 @@ if not exist "%PWSH%" (
 )
 "%PWSH%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0powershell\Local-AI.ps1" -Action logs
 set "RC=%ERRORLEVEL%"
-if not "%RC%"=="0" pause
+if not "%JYNERATION_NONINTERACTIVE%"=="1" if not "%RC%"=="0" pause
 exit /b %RC%

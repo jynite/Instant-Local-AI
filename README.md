@@ -1,6 +1,11 @@
-# Local AI v2
+# JYNERATION — Ollama Control HUD
 
-Local AI v2 is a Windows + WSL2 launcher for Ollama, Open WebUI, and Pi.
+JYNERATION is a Windows + WSL2 control HUD for Ollama, Open WebUI, and Pi.
+The internal runtime remains Local AI v2 beta4.1; JYNERATION is the user-facing product identity.
+
+The beta UI is built as a dark operator console: one branded surface for
+runtime status, model selection, lifecycle commands, diagnostics, and release
+credits.
 
 It is built around one idea: install the stack once, then choose whether you want the Web UI, the coding agent, both, or only the model API.
 
@@ -25,6 +30,7 @@ It is built around one idea: install the stack once, then choose whether you wan
 - WSL2
 - Ubuntu
 - PowerShell 7
+- Python 3.10+ and PySide6 for the HUD (installed by setup)
 - internet access during setup
 - enough RAM and disk space for the model you select
 - an NVIDIA GPU is recommended, but the launcher does not require one
@@ -48,9 +54,10 @@ Setup handles:
 - WSL and Ubuntu
 - WSL2 conversion when needed
 - systemd
-- Linux prerequisites
+- Linux prerequisites, including the local Open WebUI password-recovery tool
 - Node.js when Pi is enabled
-- Python
+- Windows Python 3.10+ and PySide6 for the HUD (Python 3.13 is installed when missing)
+- Ubuntu Python 3 and pip/venv tooling
 - uv when Open WebUI is enabled
 - Ollama
 - Pi when enabled
@@ -68,8 +75,13 @@ If Windows or Ubuntu needs a restart/first-run setup, run `Setup-Local-AI.bat` a
 ## Launchers
 
 ```text
+JYNERATION.bat --about
+JYNERATION.bat --diagnostics
+JYNERATION.bat --reset-webui
+About.bat
 Local-AI.bat
 Start-Local-AI.bat
+Start-UI.bat
 Start-WebUI.bat
 Start-Pi.bat
 Resume-Pi.bat
@@ -77,9 +89,11 @@ Start-Both.bat
 Start-Ollama.bat
 Stop-Local-AI.bat
 Restart-Local-AI.bat
+Reset-WebUI-Credentials.bat
 Status-Local-AI.bat
 Health-Check.bat
 Manage-Models.bat
+List-Models.bat
 Tokens.bat
 Live-Tokens.bat
 Dashboard.bat
@@ -96,13 +110,34 @@ DEBUG-Local-AI.bat
 
 `Status-Local-AI.bat` is intentionally side-effect free. It does not start Ubuntu merely to answer whether the stack is running.
 
+`Start-Local-AI.bat` opens the QML control center when Python and PySide6 are available. The HUD starts Ollama automatically, then loads installed models into the Runtime page selector. The control center is the preferred beta interface for lifecycle actions, model selection, service status, and logs. `Local-AI.bat` remains the PowerShell menu fallback, and `Start-UI.bat` launches the QML interface directly.
+
+The QML UI is a thin controller over the tested PowerShell controller; it does not duplicate service-management logic. A single runtime snapshot keeps services and models synchronized. On initial HUD load, that snapshot starts Ollama only when it is not already running. Model selection lives beside service state on the Runtime page rather than in a separate page. UI actions run through `ui/quiet_runner.py`, report running, reconciling, success, failure, and canceled states, and keep raw output in one shared activity drawer instead of opening blank helper consoles. Long-running live views expose a non-blocking Cancel control that stops only the HUD-launched command tree. The batch files remain the command-line recovery path if the UI is unavailable.
+
+Only one HUD instance runs at a time. Lifecycle mutations are serialized across the HUD and batch launchers, so accidental double-clicks or simultaneous commands reuse the tracked WSL keepalive instead of creating competing controller state.
+
+The `About / Credits` page in the QML HUD and `About.bat` show the release
+identity without contacting a remote service. `JYNERATION.bat --about` is the
+short CLI form, while `JYNERATION.bat --diagnostics` runs the existing
+diagnostics bundle.
+
+### QML control center
+
+The UI requires Python 3.10+ and PySide6. Install PySide6 for the active Python interpreter if needed:
+
+```text
+python -m pip install PySide6
+```
+
+The source lives under `ui/` and consists of a PySide6 process bridge plus a Qt Quick/QML presentation layer.
+
 ## WSL lifetime
 
 Open WebUI and Ollama are Linux services. WSL can shut a distro down when there is no active Windows-side client, even while Linux services exist.
 
-For Web UI, Both, and Ollama-only profiles, Local AI opens a visible Ubuntu runtime window by default. Keep that window open while the profile is running.
+For Web UI, Both, and Ollama-only profiles, Local AI keeps the Ubuntu runtime alive with a hidden, tracked WSL process. No blank Ubuntu terminal is opened by the controller; the process is stopped automatically with the managed profile.
 
-Pi-only mode does not need the extra runtime window because the interactive Pi terminal itself keeps WSL active.
+Pi-only mode does not need the extra keepalive because the interactive Pi terminal itself keeps WSL active.
 
 The behavior can be changed in `config/local.json`.
 
@@ -147,6 +182,8 @@ benchmark
 ```
 
 It uses `~/.local/bin/local-ai-tools.py` when available and has direct safe fallbacks for health/model inspection. Benchmark uses the model and context configured for Pi.
+
+Token reports read the usage metadata Open WebUI stores for each assistant response. Some providers/models return no usage metadata (for example, failed tool-only requests); those responses are labeled `unavailable` instead of being misreported as zero tokens. The HUD activity drawer is seeded from the latest persisted controller log and continues to stream command output while an operation runs.
 
 ## Context
 
@@ -197,6 +234,18 @@ Open WebUI uses Python 3.11 and a persistent uv tool environment for new Local A
 If setup detects an existing working `open-webui.service`, it preserves that service definition rather than replacing it. This is useful when migrating from an older Local AI build.
 
 Newly created Open WebUI services are not enabled for automatic WSL-boot startup. Profiles start the service only when needed.
+
+### Forgotten Open WebUI login
+
+Use **Operations → Recovery → Reset WebUI login** in the HUD, choose option 19 in the PowerShell menu, or run:
+
+```text
+Reset-WebUI-Credentials.bat
+```
+
+The recovery terminal lists the local Open WebUI account emails, asks for a new password twice without echoing it, stops only Open WebUI, creates a timestamped `webui.db.backup-*` copy, updates that account's bcrypt password hash, and restores the service if it was previously running. It does not delete chats, models, settings, or other accounts.
+
+Setup installs the required Ubuntu `htpasswd` utility. Credential recovery also installs it on demand for older beta installations.
 
 ## Logging and diagnostics
 
@@ -261,4 +310,17 @@ Automatic context profiling, stronger sandbox enforcement, richer Pi audit logs,
 
 ## License
 
-MIT.
+MIT. Preserve `LICENSE` and `NOTICE.md` when redistributing the project.
+
+## Attribution and provenance
+
+`NOTICE.md` and `CREDITS.json` carry the JYNERATION identity and the author
+credit (`Copyright (c) 2026 saj`). `SHA256SUMS.txt` records the exact hashes
+for the beta files. The current workspace is intentionally marked
+`unsigned-local-build`; official releases can publish a detached signature for
+that manifest using the process documented in `PROVENANCE.md`.
+
+This is transparent provenance, not hidden telemetry: the project makes no
+network callback or secret tracking request to preserve credit. The MIT license
+already requires the copyright and permission notice to remain in copies and
+substantial portions of the software.

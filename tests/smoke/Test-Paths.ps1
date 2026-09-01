@@ -1,14 +1,15 @@
 $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Required = @(
-    "Local-AI.bat","Setup-Local-AI.bat","Start-Local-AI.bat","Stop-Local-AI.bat","Restart-Local-AI.bat",
+    "JYNERATION.bat","About.bat","Local-AI.bat","Setup-Local-AI.bat","Start-Local-AI.bat","Stop-Local-AI.bat","Restart-Local-AI.bat","Reset-WebUI-Credentials.bat",
     "Status-Local-AI.bat","Health-Check.bat","Live-Logs.bat","Benchmark.bat","Benchmark-History.bat",
     "Tokens.bat","Live-Tokens.bat","Dashboard.bat","Diagnostics.bat","WebUI-Probe.bat",
     "Start-WebUI.bat","Start-Pi.bat","Start-Both.bat","Start-Ollama.bat","Resume-Pi.bat",
     "Open-WSL-Runtime.bat","Manage-Models.bat","Repair-Local-AI.bat","Update-Local-AI.bat",
     "Uninstall-Local-AI.bat","VERIFY-BUILD.bat","DEBUG-Local-AI.bat",
-    "powershell\Local-AI.ps1","powershell\Setup-Local-AI.ps1","powershell\Find-Pwsh.ps1","powershell\Repair-Local-AI.ps1",
+    "powershell\Local-AI.ps1","powershell\Setup-Local-AI.ps1","powershell\Find-Pwsh.ps1","powershell\Find-Python.ps1","powershell\Repair-Local-AI.ps1",
     "powershell\Update-Local-AI.ps1","powershell\Uninstall-Local-AI.ps1",
-    "config\default.json","config\models.json","config\settings.json","extension\local-ai.ts","wsl\local-ai-tools.py"
+    "config\default.json","config\models.json","config\settings.json","extension\local-ai.ts","wsl\local-ai-tools.py",
+    "NOTICE.md","CREDITS.json","PROVENANCE.md","ui\quiet_runner.py","tests\smoke\test_controller.py"
 )
 $Missing = foreach ($item in $Required) { if (-not (Test-Path (Join-Path $Root $item))) { $item } }
 if ($Missing) { throw "Missing files: $($Missing -join ', ')" }

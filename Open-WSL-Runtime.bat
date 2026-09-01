@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title WSL Runtime
+title JYNERATION - WSL Runtime
 cd /d "%~dp0"
 set "PS5=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "PWSH=%ProgramFiles%\PowerShell\7\pwsh.exe"

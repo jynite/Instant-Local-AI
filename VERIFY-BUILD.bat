@@ -31,6 +31,6 @@ if errorlevel 1 (
     pause
     exit /b 5
 )
-echo PASS: Local AI v2 beta 4.1 files are internally consistent.
+echo PASS: JYNERATION beta 4.1 files are internally consistent.
 pause
 exit /b 0

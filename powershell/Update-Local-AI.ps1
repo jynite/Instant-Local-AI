@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 saj
+# SPDX-License-Identifier: MIT
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $configPath = Join-Path $Root "config\local.json"

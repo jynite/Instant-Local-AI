@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 saj
+# SPDX-License-Identifier: MIT
 param([switch]$Repair)
 
 $ErrorActionPreference = "Stop"
@@ -149,7 +151,7 @@ function Http-Ok {
     param([string]$Url,[int]$Timeout=3)
     try {
         $response = Invoke-WebRequest -Uri $Url -Method Get -MaximumRedirection 0 -TimeoutSec $Timeout -SkipHttpErrorCheck
-        return $null -ne $response
+        return $null -ne $response -and [int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 400
     } catch { return $false }
 }
 
@@ -167,9 +169,81 @@ function Assert-ModelName {
     if ([string]::IsNullOrWhiteSpace($Model) -or $Model -notmatch '^[A-Za-z0-9._:/-]+$') { throw "Invalid Ollama model name: '$Model'" }
 }
 
-Log "Local AI v2 $(if ($Repair) {'repair'} else {'setup'}) starting."
+function Test-WindowsPython {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    try {
+        $version = (& $Path -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" 2>$null | Select-Object -First 1).Trim()
+        if ($version -notmatch '^\d+\.\d+$') { return $false }
+        $parts = $version.Split('.')
+        return ([int]$parts[0] -gt 3) -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -ge 10)
+    } catch { return $false }
+}
+
+function Resolve-WindowsPython {
+    $finder = Join-Path $Root "powershell\Find-Python.ps1"
+    if (Test-Path -LiteralPath $finder -PathType Leaf) {
+        $resolvedByFinder = (& $finder 2>$null | Select-Object -First 1)
+        if ($resolvedByFinder -and (Test-WindowsPython ([string]$resolvedByFinder).Trim())) { return ([string]$resolvedByFinder).Trim() }
+    }
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $command = Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command -and $command.Source) { $candidates.Add([string]$command.Source) }
+    $launcher = Get-Command py.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($launcher -and $launcher.Source) {
+        $resolved = & $launcher.Source -3 -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+        if ($resolved) { $candidates.Add(([string]$resolved).Trim()) }
+    }
+    foreach ($root in @($env:LocalAppData, $env:ProgramFiles, ${env:ProgramFiles(x86)}, ${env:ProgramW6432})) {
+        if ([string]::IsNullOrWhiteSpace($root)) { continue }
+        foreach ($version in @('Python315','Python314','Python313','Python312','Python311','Python310')) {
+            $pythonRoot = Join-Path (Join-Path (Join-Path $root "Programs") "Python") $version
+            $candidates.Add((Join-Path $pythonRoot "python.exe"))
+            $candidates.Add((Join-Path (Join-Path $root $version) "python.exe"))
+        }
+    }
+    foreach ($candidate in $candidates) {
+        if (Test-WindowsPython $candidate) { return $candidate }
+    }
+    return $null
+}
+
+function Ensure-WindowsPython {
+    $python = Resolve-WindowsPython
+    if (-not $python) {
+        if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+            throw "Python 3.10+ is required for the HUD, but winget.exe is unavailable. Install Microsoft App Installer, then run setup again."
+        }
+        Log "Installing Windows Python 3.13 for the JYNERATION HUD."
+        & winget.exe install --id Python.Python.3.13 --exact --upgrade --source winget --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) { throw "Windows Python installation failed." }
+        $python = Resolve-WindowsPython
+    }
+    if (-not $python) { throw "Windows Python was installed but could not be located. Open a new terminal and run setup again." }
+    $pythonw = Join-Path (Split-Path -Parent $python) 'pythonw.exe'
+    if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) { throw "Windows Python is missing pythonw.exe, which the HUD needs for a console-free launch." }
+    Log "Windows Python detected: $((& $python -c "import sys; print(sys.version.split()[0])" 2>$null | Select-Object -First 1).Trim())" "OK"
+    & $python -m pip --version *> $null
+    if ($LASTEXITCODE -ne 0) {
+        & $python -m ensurepip --upgrade *> $null
+        if ($LASTEXITCODE -ne 0) { throw "Python pip could not be bootstrapped." }
+    }
+    Log "Installing/updating PySide6 for the JYNERATION HUD."
+    & $python -m pip install --upgrade --no-input --disable-pip-version-check pip PySide6
+    if ($LASTEXITCODE -ne 0) {
+        Log "System Python is not writable; retrying the HUD packages for the current user." "WARN"
+        & $python -m pip install --user --upgrade --no-input --disable-pip-version-check pip PySide6
+    }
+    if ($LASTEXITCODE -ne 0) { throw "PySide6 installation failed." }
+    & $python -c "import PySide6; print('PySide6 ' + getattr(PySide6, '__version__', 'ready'))"
+    if ($LASTEXITCODE -ne 0) { throw "PySide6 import validation failed." }
+    $script:WindowsPython = $python
+}
+
+    Log "JYNERATION $(if ($Repair) {'repair'} else {'setup'}) starting."
 if (-not [Environment]::Is64BitOperatingSystem) { throw "64-bit Windows is required." }
 Log "64-bit Windows detected." "OK"
+Ensure-WindowsPython
 
 $wslOk = $false
 try { & wsl.exe --status *> $null; $wslOk = $LASTEXITCODE -eq 0 } catch {}
@@ -260,7 +334,8 @@ if ([bool]$config.components.open_webui) {
 
 Log "Updating Ubuntu package lists. Output is streamed below."
 WslRoot $distro "export DEBIAN_FRONTEND=noninteractive; apt-get update"
-$corePackages = "ca-certificates curl jq unzip python3 python3-pip python3-venv"
+$corePackages = "ca-certificates curl jq unzip python3 python3-pip python3-venv systemd dbus procps"
+if ([bool]$config.components.open_webui) { $corePackages += " apache2-utils" }
 if ([bool]$config.components.pi) { $corePackages += " git ripgrep" }
 Log "Installing Ubuntu prerequisites."
 WslRoot $distro "export DEBIAN_FRONTEND=noninteractive; apt-get install -y $corePackages"
@@ -272,7 +347,7 @@ if ([bool]$config.components.pi) {
     if ($nodeVersion -match '^v(\d+)\.(\d+)') { $nodeMajor = [int]$Matches[1]; $nodeMinor = [int]$Matches[2] }
     if ($nodeMajor -lt 22 -or ($nodeMajor -eq 22 -and $nodeMinor -lt 19)) {
         Log "Installing Node.js 24 for current Pi compatibility."
-        WslRoot $distro "curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && export DEBIAN_FRONTEND=noninteractive; apt-get install -y nodejs"
+        WslRoot $distro "set -e; curl -fsSL https://deb.nodesource.com/setup_24.x | bash -; export DEBIAN_FRONTEND=noninteractive; apt-get install -y nodejs"
     } else { Log "Node.js detected: $(WslCapture $distro 'node --version')" "OK" }
 }
 
@@ -448,10 +523,11 @@ if ($gpu) { Log "GPU: $gpu" "OK" } else { Log "NVIDIA GPU telemetry was not dete
 
 Log "Running smoke checks."
 $smokeCommands = @("python3 --version","ollama --version")
-if ([bool]$config.components.open_webui) { $smokeCommands += "uv --version" }
+if ([bool]$config.components.open_webui) { $smokeCommands += "uv --version"; $smokeCommands += "command -v htpasswd" }
 if ([bool]$config.components.pi) { $smokeCommands += "node --version"; $smokeCommands += "npm --version" }
-WslUser $distro ($smokeCommands -join "; ")
-WslUser $distro "export LOCAL_AI_MODEL='$model'; python3 ~/.local/bin/local-ai-tools.py health" -IgnoreExitCode | Out-Null
+WslUser $distro ("set -e; " + ($smokeCommands -join "; "))
+$healthWebUi = if ([bool]$config.components.open_webui) { "1" } else { "0" }
+WslUser $distro "export LOCAL_AI_MODEL='$model'; export LOCAL_AI_OPEN_WEBUI_ENABLED='$healthWebUi'; python3 ~/.local/bin/local-ai-tools.py health" -IgnoreExitCode | Out-Null
 if ([bool]$config.components.pi) {
     $piSmokeScript = @'
 set -e
@@ -486,7 +562,7 @@ timeout 90 "$pi_bin" --provider ollama --model '__MODEL__' --thinking '__THINKIN
 Save-InstallState
 Write-Host ""
 Write-Host "=========================================="
-Write-Host "          LOCAL AI v2 READY"
+    Write-Host "       JYNERATION // READY"
 Write-Host "=========================================="
 Write-Host "Profile : $($config.profile)"
 Write-Host "Model   : $model"

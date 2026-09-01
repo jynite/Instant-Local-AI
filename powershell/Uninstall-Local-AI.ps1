@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 saj
+# SPDX-License-Identifier: MIT
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $configPath = Join-Path $Root "config\local.json"
@@ -9,7 +11,7 @@ $distro = [string]$config.distro
 function User { param([string]$Command); & wsl.exe -d $distro -- bash -lc $Command; if ($LASTEXITCODE -ne 0) { throw "Ubuntu command failed." } }
 function Root { param([string]$Command); & wsl.exe -d $distro -u root -- bash -lc $Command; if ($LASTEXITCODE -ne 0) { throw "Ubuntu root command failed." } }
 
-Write-Host "Local AI v2 Uninstall"
+Write-Host "JYNERATION // Uninstall"
 Write-Host "Everything is opt-in. WSL and Ubuntu are never removed automatically."
 
 $piIntegration = Read-Host "Remove Local AI's isolated Pi config/extension? [y/N]"
